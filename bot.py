@@ -1,13 +1,35 @@
 import os
+import threading
+from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from bypasser import route_and_bypass
 
+# Initialize Flask App for hosting compatibility
+web_server = Flask(__name__)
+
+@web_server.route('/')
+def health_check():
+    """
+    Health check endpoint for cloud platforms like Render to monitor 
+    application uptime.
+    """
+    return "Bot is alive and running!", 200
+
+def run_flask():
+    """
+    Runs the Flask web server on a separate thread to prevent 
+    blocking the Pyrogram polling engine.
+    """
+    # Render provides the PORT environment variable dynamically
+    port = int(os.environ.get("PORT", 8080))
+    # run on 0.0.0.0 to accept external health check pings
+    web_server.run(host="0.0.0.0", port=port)
+
 # Pulling the token directly from your environment variables
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_FALLBACK")
 
-# Initializing the client cleanly. 
-# Pyrogram will automatically search for 'API_ID' and 'API_HASH' in your environment.
+# Initializing the Pyrogram client
 app = Client("bypass_bot_session", bot_token=BOT_TOKEN)
 
 @app.on_message(filters.command("start") & filters.private)
@@ -38,5 +60,10 @@ async def message_handler(client: Client, message: Message):
         )
 
 if __name__ == "__main__":
+    print("Starting Flask web server thread...")
+    # Target the run_flask function and run it as a daemon thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
     print("Initializing components and starting standard polling engine...")
     app.run()
