@@ -1,7 +1,23 @@
 import os
+import sys
 import asyncio
 import threading
 from flask import Flask
+
+# --- CRITICAL PYTHON 3.14+ PATCH ENGINE ---
+# Create an explicit event loop and bind it to the main execution thread 
+# BEFORE Pyrogram is imported and executes its internal setup code.
+try:
+    _loop = asyncio.get_event_loop()
+except RuntimeError:
+    _loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_loop)
+
+# Tell Pyrogram's engine to skip importing its broken synchronous extensions entirely
+sys.modules["pyrogram.sync"] = None 
+# ------------------------------------------
+
+# Now we can safely import Pyrogram components without initialization panic
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from bypasser import route_and_bypass
@@ -60,13 +76,11 @@ async def message_handler(client: Client, message: Message):
 
 async def main():
     """
-    Main asynchronous entry point. This handles the proper lifecycle of the Pyrogram
-    client without relying on Pyrogram's broken app.run() sync-wrapper.
+    Main asynchronous entry point using Pyrogram's pure async context manager.
     """
     print("Starting Pyrogram client asynchronously...")
     async with app:
         print("Bot is successfully polling for updates! 🚀")
-        # Keeps the async loop alive indefinitely while processing updates
         while True:
             await asyncio.sleep(3600)
 
@@ -75,11 +89,7 @@ if __name__ == "__main__":
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # Explicitly create and set an event loop for the MainThread to satisfy Python 3.14+
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        loop.run_until_complete(main())
+        _loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Bot stopped by user.")
