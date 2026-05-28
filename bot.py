@@ -4,20 +4,25 @@ import asyncio
 import threading
 from flask import Flask
 
-# --- CRITICAL PYTHON 3.14+ PATCH ENGINE ---
-# Create an explicit event loop and bind it to the main execution thread 
-# BEFORE Pyrogram is imported and executes its internal setup code.
+# --- ULTIMATE PYTHON 3.14+ MOCK PATCH ENGINE ---
+# Create an explicit event loop for the main thread immediately
 try:
     _loop = asyncio.get_event_loop()
 except RuntimeError:
     _loop = asyncio.new_event_loop()
     asyncio.set_event_loop(_loop)
 
-# Tell Pyrogram's engine to skip importing its broken synchronous extensions entirely
-sys.modules["pyrogram.sync"] = None 
-# ------------------------------------------
+# Create a fake mock class to replace pyrogram.sync without throwing errors
+class MockSyncModule:
+    def __getattr__(self, name):
+        # Dynamically return a dummy function or object for anything Pyrogram asks for
+        return lambda *args, **kwargs: None
 
-# Now we can safely import Pyrogram components without initialization panic
+# Inject our fake module directly into Python's memory cache before Pyrogram runs
+sys.modules["pyrogram.sync"] = MockSyncModule()
+# -----------------------------------------------
+
+# Now Pyrogram will import safely, thinking its sync utilities are fully loaded
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from bypasser import route_and_bypass
