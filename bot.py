@@ -1,4 +1,5 @@
 import os
+import asyncio
 import threading
 from flask import Flask
 from pyrogram import Client, filters
@@ -21,9 +22,7 @@ def run_flask():
     Runs the Flask web server on a separate thread to prevent 
     blocking the Pyrogram polling engine.
     """
-    # Render provides the PORT environment variable dynamically
     port = int(os.environ.get("PORT", 8080))
-    # run on 0.0.0.0 to accept external health check pings
     web_server.run(host="0.0.0.0", port=port)
 
 # Pulling the token directly from your environment variables
@@ -59,11 +58,28 @@ async def message_handler(client: Client, message: Message):
             disable_web_page_preview=True
         )
 
+async def main():
+    """
+    Main asynchronous entry point. This handles the proper lifecycle of the Pyrogram
+    client without relying on Pyrogram's broken app.run() sync-wrapper.
+    """
+    print("Starting Pyrogram client asynchronously...")
+    async with app:
+        print("Bot is successfully polling for updates! 🚀")
+        # Keeps the async loop alive indefinitely while processing updates
+        while True:
+            await asyncio.sleep(3600)
+
 if __name__ == "__main__":
     print("Starting Flask web server thread...")
-    # Target the run_flask function and run it as a daemon thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    print("Initializing components and starting standard polling engine...")
-    app.run()
+    # Explicitly create and set an event loop for the MainThread to satisfy Python 3.14+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("Bot stopped by user.")
